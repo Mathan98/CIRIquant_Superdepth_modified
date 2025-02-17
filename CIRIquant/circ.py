@@ -228,7 +228,7 @@ def build_index(log_file, thread, pseudo_fasta, outdir, prefix):
     return denovo_index
 
 
-def denovo_alignment(log_file, thread, reads, outdir, prefix):
+def denovo_alignment(log_file, thread, reads, outdir, prefix, denovo_indexed):
     """
     Call hisat2 to read re-alignment
 
@@ -242,11 +242,10 @@ def denovo_alignment(log_file, thread, reads, outdir, prefix):
     denovo_bam = '{}/circ/{}_denovo.bam'.format(outdir, prefix)
     sorted_bam = '{}/circ/{}_denovo.sorted.bam'.format(outdir, prefix)
 
-    align_cmd = '{} -p {} --dta -q -x {}/circ/{}_index -1 {} -2 {} | {} view -bS > {}'.format(
+    align_cmd = '{} -p {} --dta -q -x {} -1 {} -2 {} | {} view -bS > {}'.format(
         utils.HISAT2,
         thread,
-        outdir,
-        prefix,
+        denovo_indexed,
         reads[0],
         reads[1],
         utils.SAMTOOLS,
@@ -622,7 +621,44 @@ def query_prefix(query_name):
     return prefix
 
 
-def proc(log_file, thread, circ_file, hisat_bam, rnaser_file, reads, outdir, prefix, anchor, lib_type, is_no_fsj, bsj_file):
+def circ_index(log_file, thread, circ_file, outdir):
+    """
+    Build circular fasta and index for reads re-alignment
+
+    Returns
+    -----
+    str
+        fasta file name used in denovo mapping
+        index file name used in denovo mapping
+    """
+    import utils
+
+    if utils.DENOVO_INDEX != "None":
+        circ_fasta = '{}/Superdepth_index.fa'.format(utils.DENOVO_INDEX)
+        circ_info = load_bed(circ_file)
+        denovo_index = '{}/Superdepth_index'.format(utils.DENOVO_INDEX)
+    else:
+        circ_dir = '{}/circ'.format(outdir)
+        utils.check_dir(circ_dir)
+        circ_fasta = '{}/Superdepth_index.fa'.format(circ_dir)
+        circ_info = load_bed(circ_file)
+        prefix_SD = "Superdepth"
+        # if rnaser_file: # load the RNAse R input into the function if using this again (rnaser_file)
+        #     LOGGER.info('Loading RNase R results')
+        #     rnaser_exp, rnaser_stat = update_info(circ_info, rnaser_file)
+
+        # extract fasta file for reads alignment
+        generate_index(log_file, circ_info, circ_fasta)
+
+        # hisat2-build index
+        denovo_index = build_index(log_file, thread, circ_fasta, outdir, prefix_SD)
+    LOGGER.info('De-novo index: {}'.format(denovo_index))
+
+    return circ_info, denovo_index
+
+
+
+def proc(log_file, thread, circ_info, denovo_index, hisat_bam, reads, outdir, prefix, anchor, lib_type, is_no_fsj, bsj_file):
     """
     Build pseudo circular reference index and perform reads re-alignment
     Extract BSJ and FSJ reads from alignment results
@@ -637,21 +673,28 @@ def proc(log_file, thread, circ_file, hisat_bam, rnaser_file, reads, outdir, pre
     circ_dir = '{}/circ'.format(outdir)
     check_dir(circ_dir)
 
-    circ_fasta = '{}/circ/{}_index.fa'.format(outdir, prefix)
-    circ_info = load_bed(circ_file)
-    if rnaser_file:
-        LOGGER.info('Loading RNase R results')
-        rnaser_exp, rnaser_stat = update_info(circ_info, rnaser_file)
+    # if utils.DENOVO_INDEX is not None:
+    #     print(utils.DENOVO_INDEX)
+    #     circ_fasta = '{}/Superdepth_index.fa'.format(utils.DENOVO_INDEX)
+    #     circ_info = load_bed(circ_file)
+    #     denovo_index = '{}/Superdepth_index'.format(utils.DENOVO_INDEX)
+    
+    # else:
+    #     circ_fasta = '{}/Superdepth_index.fa'.format(circ_dir)
+    #     circ_info = load_bed(circ_file)
+    #     # if rnaser_file: # load the RNAse R input into the function if using this again (rnaser_file)
+    #     #     LOGGER.info('Loading RNase R results')
+    #     #     rnaser_exp, rnaser_stat = update_info(circ_info, rnaser_file)
 
-    # extract fasta file for reads alignment
-    generate_index(log_file, circ_info, circ_fasta)
+    #     # extract fasta file for reads alignment
+    #     generate_index(log_file, circ_info, circ_fasta)
 
-    # hisat2-build index
-    denovo_index = build_index(log_file, thread, circ_fasta, outdir, prefix)
-    LOGGER.debug('De-novo index: {}'.format(denovo_index))
+    #     # hisat2-build index
+    #     denovo_index = build_index(log_file, thread, circ_fasta, outdir, prefix)
+    # LOGGER.info('De-novo index: {}'.format(denovo_index))
 
     # hisat2 de novo alignment for candidate reads
-    denovo_bam = denovo_alignment(log_file, thread, reads, outdir, prefix)
+    denovo_bam = denovo_alignment(log_file, thread, reads, outdir, prefix, denovo_index)
     LOGGER.debug('De-novo bam: {}'.format(denovo_bam))
 
     # Find BSJ and FSJ informations
@@ -676,12 +719,12 @@ def proc(log_file, thread, circ_file, hisat_bam, rnaser_file, reads, outdir, pre
     ]
     out_file = '{}/{}.gtf'.format(outdir, prefix)
 
-    if rnaser_file:
-        import coeff
-        tmp_header, circ_exp = coeff.correction(sample_exp, sample_stat, rnaser_exp, rnaser_stat)
-        header += tmp_header
-    else:
-        circ_exp = sample_exp
+    # if rnaser_file:
+    #     import coeff
+    #     tmp_header, circ_exp = coeff.correction(sample_exp, sample_stat, rnaser_exp, rnaser_stat)
+    #     header += tmp_header
+    # else:
+    circ_exp = sample_exp
 
     from version import __version__
     header += ['version: {}'.format(__version__), ]

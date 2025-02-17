@@ -12,6 +12,8 @@ def align_genome(log_file, thread, reads, outdir, prefix):
     # mapping to reference genome
     align_dir = outdir + '/align'
     utils.check_dir(align_dir)
+
+
     sorted_bam = '{}/{}.sorted.bam'.format(align_dir, prefix)
     hisat_cmd = '{0} -p {1} --dta -q -x {2} -1 {3} -2 {4} -t --new-summary | {5} sort -o {6} --threads {1} -'.format(
         utils.HISAT2,
@@ -43,11 +45,8 @@ def align_genome(log_file, thread, reads, outdir, prefix):
 
 
 def gene_abundance(log_file, thread, outdir, prefix, hisat_bam):
-    align_dir = outdir + '/align'
-    utils.check_dir(align_dir)
 
     # estimate gene expression
-    LOGGER.info('Estimate gene abundance ..')
     gene_dir = '{}/gene'.format(outdir)
     utils.check_dir(gene_dir)
 

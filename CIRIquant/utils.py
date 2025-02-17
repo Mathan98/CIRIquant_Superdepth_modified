@@ -11,11 +11,12 @@ BWA = None
 HISAT2 = None
 STRINGTIE = None
 SAMTOOLS = None
-JAVA = None
-PERL = None
+#JAVA = None
+#PERL = None
 
 FASTA = None
 GTF = None
+DENOVO_INDEX = None
 BWA_INDEX = None
 HISAT_INDEX = None
 
@@ -69,7 +70,7 @@ def check_dir(dir_name):
 def check_config(config_file):
     import yaml
     global BWA, HISAT2, STRINGTIE, SAMTOOLS
-    global FASTA, GTF, BWA_INDEX, HISAT_INDEX
+    global FASTA, GTF, DENOVO_INDEX, BWA_INDEX, HISAT_INDEX
 
     # check config reliability
     LOGGER.info('Loading config file: {}'.format(os.path.basename(config_file)))
@@ -105,6 +106,10 @@ def check_config(config_file):
     if 'hisat_index' not in config['reference']:
         raise ConfigError('HISAT2 index not found')
     
+    if 'denovo_index' not in config['reference']:
+        raise ConfigError('Denovo index not found')    
+    DENOVO_INDEX = config['reference']['denovo_index']
+
     short_index = check_file(config['reference']['hisat_index'] + '.1.ht2', is_required=False)
     long_index = check_file(config['reference']['hisat_index'] + '.1.ht2l', is_required=False)
     if short_index:
@@ -113,6 +118,8 @@ def check_config(config_file):
         HISAT_INDEX = os.path.splitext(os.path.splitext(long_index)[0])[0]
     else:
         raise ConfigError('Could not find hisat2 index with suffix: *.[1-8].ht2 or *.[1-8].ht2l, please check your configuration')
+
+
 
     if 'name' in config:
         return config['name']
@@ -131,7 +138,8 @@ def check_software(cmd):
 
 
 def check_samtools_version(samtools):
-    from commands import getoutput
+    import commands
+    getoutput = commands.getoutput
     from distutils.version import LooseVersion
     version = getoutput('{} --version'.format(samtools).split('\n')[0].split(' ')[1])
     if version and cmp(LooseVersion(version), LooseVersion('1.9')) < 0:
